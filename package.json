@@ -1,0 +1,18 @@
+{
+  "name": "tennis-book",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Squeeze-slot bot for Kallang outdoor resident tennis courts (PerfectGym).",
+  "type": "module",
+  "scripts": {
+    "book": "node src/index.js",
+    "book:dry": "DRY_RUN=1 node src/index.js",
+    "book:headed": "HEADLESS=0 node src/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "playwright": "^1.48.0"
+  }
+}
