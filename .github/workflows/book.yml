@@ -1,13 +1,10 @@
 name: Tennis squeeze-slot bot
 
 on:
-  schedule:
-    # GitHub cron min granularity is 5 min. Runs are best-effort and can be delayed
-    # or dropped under load — acceptable for our use case but not for true seconds-
-    # fast squeeze. Limit to evenings Singapore time (SGT = UTC+8): 17:00-23:00 SGT
-    # = 09:00-15:00 UTC, plus morning opens (usually 00:00 SGT = 16:00 UTC).
-    - cron: '*/5 9-15 * * *'
-    - cron: '0,5,10,15,20 16 * * *'
+  # Cron disabled while we debug failures. Re-enable by uncommenting.
+  # schedule:
+  #   - cron: '*/5 9-15 * * *'
+  #   - cron: '0,5,10,15,20 16 * * *'
   workflow_dispatch:
     inputs:
       dry_run:
