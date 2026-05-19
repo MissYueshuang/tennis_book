@@ -1,7 +1,29 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:www.thekallang.com.sg)"
+      "WebFetch(domain:www.thekallang.com.sg)",
+      "Bash(gh auth *)",
+      "Bash(mkdir -p ~/.ssh)",
+      "Bash(chmod 700 ~/.ssh)",
+      "Bash(ssh-keygen -t ed25519 -C \"lengyueshuang.luna@gmail.com\" -f ~/.ssh/id_ed25519 -N \"\")",
+      "Bash(chmod 600 ~/.ssh/config ~/.ssh/id_ed25519)",
+      "Bash(chmod 644 ~/.ssh/id_ed25519.pub)",
+      "Bash(pbcopy)",
+      "Bash(git config *)",
+      "Bash(ssh -o StrictHostKeyChecking=accept-new -T git@github.com)",
+      "Bash(ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=8 -T -p 443 git@ssh.github.com)",
+      "Bash(ssh -o ConnectTimeout=10 -T git@github.com)",
+      "Bash(ssh-keygen -lf ~/.ssh/id_ed25519.pub)",
+      "Bash(ssh -vT git@github.com)",
+      "Bash(ssh -T git@github.com)",
+      "Bash(ssh-keygen -y -P \"\" -f ~/.ssh/id_ed25519)",
+      "Bash(ssh-add -l)",
+      "Bash(git remote *)",
+      "Bash(command -v pdftotext)",
+      "Bash(pdftotext -layout \"/Users/yueshuang.leng/.claude/projects/-Users-yueshuang-leng-Desktop-tennis-book/c37a49b9-3372-4d08-b234-90b2f8a6944e/tool-results/webfetch-1776678669961-bg06mt.pdf\" -)",
+      "WebFetch(domain:thekallang.perfectgym.com)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   }
 }
