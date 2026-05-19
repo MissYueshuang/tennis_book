@@ -6,3 +6,11 @@ traces/
 screenshots/
 *.log
 .DS_Store
+.claude/
+.venv/
+backend/__pycache__/
+backend/routers/__pycache__/
+backend/tools/__pycache__/
+backend/*.db
+frontend/.next/
+frontend/tsconfig.tsbuildinfo
