@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+
 @layer base {
   :root {
     --background: 222 47% 5%;
@@ -51,3 +52,4 @@
 .chat-content ul { @apply list-disc pl-4 mb-2; }
 .chat-content ol { @apply list-decimal pl-4 mb-2; }
 .chat-content strong { @apply font-semibold; }
+

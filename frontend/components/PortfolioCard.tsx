@@ -2,8 +2,7 @@
 import { useState } from "react";
 import { TrendingUp, TrendingDown, Trash2, Edit2, Check, X } from "lucide-react";
 import { type Holding, type Quote, updateHolding, removeHolding } from "@/lib/api";
-import { cn, fmtCurrency, fmtPct, fmtCompact } from "@/lib/utils";
-import MiniChart from "./MiniChart";
+import { cn, fmtCurrency, fmtPct } from "@/lib/utils";
 
 interface Props {
   holding: Holding;
@@ -25,7 +24,6 @@ export default function PortfolioCard({ holding, quote, onMutate, onClick, selec
   const pnl = marketValue - costBasis;
   const pnlPct = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
   const up = pnl >= 0;
-  const dayUp = (quote?.change ?? 0) >= 0;
 
   async function save() {
     setBusy(true);
@@ -48,62 +46,33 @@ export default function PortfolioCard({ holding, quote, onMutate, onClick, selec
     <div
       onClick={() => !editing && onClick()}
       className={cn(
-        "relative rounded-xl border p-4 cursor-pointer transition-all",
+        "relative rounded-xl border px-4 py-3 cursor-pointer transition-all",
         "bg-card hover:border-primary/50",
         selected ? "border-primary ring-1 ring-primary/30" : "border-border"
       )}
     >
       {/* Header */}
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-bold tracking-tight">{holding.ticker}</span>
-            {quote && (
-              <span
-                className={cn(
-                  "text-xs px-1.5 py-0.5 rounded font-medium",
-                  dayUp ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"
-                )}
-              >
-                {fmtPct(quote.change_pct)}
-              </span>
-            )}
-          </div>
-          <div className="text-2xl font-semibold mt-0.5">{fmtCurrency(price)}</div>
-        </div>
-        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-base font-bold tracking-tight">{holding.ticker}</span>
+        <div className="flex gap-1 absolute top-2.5 right-2.5">
           <button
             onClick={(e) => { e.stopPropagation(); setEditing(true); }}
-            className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground"
+            className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
           >
-            <Edit2 size={14} />
+            <Edit2 size={13} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); del(); }}
-            className="p-1.5 rounded-lg hover:bg-red-500/15 text-muted-foreground hover:text-red-400"
+            className="p-1 rounded hover:bg-red-500/15 text-muted-foreground hover:text-red-400"
           >
-            <Trash2 size={14} />
-          </button>
-        </div>
-        <div className="flex gap-1 absolute top-3 right-3">
-          <button
-            onClick={(e) => { e.stopPropagation(); setEditing(true); }}
-            className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground"
-          >
-            <Edit2 size={14} />
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); del(); }}
-            className="p-1.5 rounded-lg hover:bg-red-500/15 text-muted-foreground hover:text-red-400"
-          >
-            <Trash2 size={14} />
+            <Trash2 size={13} />
           </button>
         </div>
       </div>
 
       {/* Edit mode */}
       {editing ? (
-        <div className="space-y-2 mt-2" onClick={(e) => e.stopPropagation()}>
+        <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
           <div className="flex gap-2">
             <div className="flex-1">
               <label className="text-xs text-muted-foreground">Shares</label>
@@ -143,29 +112,23 @@ export default function PortfolioCard({ holding, quote, onMutate, onClick, selec
           </div>
         </div>
       ) : (
-        <>
-          <div className="text-xs text-muted-foreground mb-2">
-            {holding.shares} shares · avg {fmtCurrency(holding.avg_cost)}
+        <div className="grid grid-cols-3 gap-2 text-sm">
+          <div>
+            <div className="text-xs text-muted-foreground">Avg Cost</div>
+            <div className="font-medium">{fmtCurrency(holding.avg_cost)}</div>
           </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm text-muted-foreground">Market Value</div>
-              <div className="font-semibold">{fmtCurrency(marketValue)}</div>
-            </div>
-            <div className="text-right">
-              <div className="text-sm text-muted-foreground">Total P&L</div>
-              <div className={cn("font-semibold flex items-center gap-1 justify-end", up ? "text-green-400" : "text-red-400")}>
-                {up ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-                {fmtCurrency(Math.abs(pnl))} ({fmtPct(pnlPct)})
-              </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Mkt Value</div>
+            <div className="font-medium">{fmtCurrency(marketValue)}</div>
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-muted-foreground">Total P&L</div>
+            <div className={cn("font-medium flex items-center gap-0.5 justify-end", up ? "text-green-400" : "text-red-400")}>
+              {up ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+              {fmtPct(pnlPct)}
             </div>
           </div>
-          {quote?.volume && (
-            <div className="mt-2 text-xs text-muted-foreground">
-              Vol: {fmtCompact(quote.volume)}
-            </div>
-          )}
-        </>
+        </div>
       )}
     </div>
   );

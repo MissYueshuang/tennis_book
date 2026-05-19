@@ -51,6 +51,8 @@ class HoldingOut(BaseModel):
 
 class ChatMessageIn(BaseModel):
     content: str
+    model: Optional[str] = None   # overrides OLLAMA_MODEL env var if set
+    think: bool = False            # Qwen3 thinking mode
 
 
 class ChatMessageOut(BaseModel):
