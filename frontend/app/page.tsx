@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from "react-resizable-panels";
 import { Plus, RefreshCw, BarChart2, LayoutGrid, TrendingUp, DollarSign } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
@@ -298,9 +298,9 @@ export default function Home() {
           className="h-full"
         >
           {order.map((widgetId, idx) => (
-            <>
+            <React.Fragment key={widgetId}>
               <Panel
-                key={widgetId}
+                id={widgetId}
                 id={widgetId}
                 defaultSize={sizes[idx] ?? DEFAULT_SIZES[idx] ?? 33}
                 minSize={15}
@@ -319,7 +319,7 @@ export default function Home() {
                   <div className="absolute w-1 h-8 rounded-full bg-border group-hover:bg-primary/60 transition-colors duration-150" />
                 </PanelResizeHandle>
               )}
-            </>
+            </React.Fragment>
           ))}
         </PanelGroup>
       </div>
