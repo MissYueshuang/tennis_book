@@ -4,13 +4,14 @@ import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line,
   XAxis, YAxis, Tooltip, ReferenceLine, CartesianGrid,
 } from "recharts";
-import { Loader2, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, Minus, X, ChevronRight } from "lucide-react";
+import { ReferenceArea } from "recharts";
 import InfoTip from "@/components/InfoTip";
 import ChatWindow from "@/components/ChatWindow";
 import { cn } from "@/lib/utils";
 import {
   getMacroScorecard, getMacroValuation, getMacroHistory,
-  getMacroEconomic, getMacroSentiment,
+  getMacroEconomic, getMacroSentiment, getIndicatorDetail,
 } from "@/lib/macroApi";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -262,7 +263,126 @@ function ScorecardSection({ data, loading }: { data: ScorecardData | null; loadi
 
 // ── Section 2: Valuation ──────────────────────────────────────────────────────
 
+// ── Indicator detail panel ────────────────────────────────────────────────────
+const ACTION_STYLES: Record<string, string> = {
+  buy:     "bg-green-500/15 text-green-400 border border-green-500/30",
+  hold:    "bg-blue-500/15 text-blue-400 border border-blue-500/30",
+  caution: "bg-yellow-500/15 text-yellow-400 border border-yellow-500/30",
+  sell:    "bg-red-500/15 text-red-400 border border-red-500/30",
+  unknown: "bg-muted text-muted-foreground border border-border",
+};
+
+function IndicatorDetailPanel({ name, onClose }: { name: string; onClose: () => void }) {
+  const [detail, setDetail] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    getIndicatorDetail(name)
+      .then(setDetail)
+      .finally(() => setLoading(false));
+  }, [name]);
+
+  if (loading) return (
+    <div className="rounded-xl border border-primary/40 bg-card p-4 mt-3 flex items-center justify-center h-48">
+      <div className="flex items-center gap-2 text-muted-foreground text-sm">
+        <Loader2 size={15} className="animate-spin" /> Loading history…
+      </div>
+    </div>
+  );
+
+  if (!detail || detail.error) return (
+    <div className="rounded-xl border border-border bg-card p-4 mt-3 text-sm text-muted-foreground">
+      History unavailable for this indicator.
+      <button onClick={onClose} className="ml-2 text-primary hover:underline">Close</button>
+    </div>
+  );
+
+  const suggestion = detail.suggestion ?? {};
+  const actionStyle = ACTION_STYLES[suggestion.action ?? "unknown"] ?? ACTION_STYLES.unknown;
+  const actionLabel = (suggestion.action ?? "unknown").charAt(0).toUpperCase() + (suggestion.action ?? "unknown").slice(1);
+
+  // Build chart y-domain from zones
+  const allY = (detail.zones ?? []).flatMap((z: any) => [z.y1, z.y2]);
+  const histVals = (detail.hist ?? []).map((h: any) => h.value).filter(Boolean);
+  const yMin = Math.min(...allY, ...histVals) * 0.95;
+  const yMax = Math.max(...allY, ...histVals) * 1.05;
+
+  return (
+    <div className="rounded-xl border border-primary/40 bg-card p-4 mt-3 animate-in slide-in-from-top-2 duration-200">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <h4 className="font-semibold text-sm">{detail.title}</h4>
+          {detail.current != null && (
+            <span className="text-xs text-muted-foreground">
+              Current: <span className="font-bold text-foreground">{detail.current.toFixed(2)}{detail.unit}</span>
+            </span>
+          )}
+        </div>
+        <button onClick={onClose} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground">
+          <X size={14} />
+        </button>
+      </div>
+
+      {/* History chart with zones */}
+      <div className="mb-3">
+        <div className="text-xs text-muted-foreground mb-1.5 font-medium">Historical Range</div>
+        <ResponsiveContainer width="100%" height={180}>
+          <AreaChart data={detail.hist} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+            <defs>
+              <linearGradient id={`indGrad-${name}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis dataKey="date" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
+              tickLine={false} axisLine={false} interval="preserveStartEnd" />
+            <YAxis domain={[yMin, yMax]}
+              tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
+              tickLine={false} axisLine={false} width={42}
+              tickFormatter={(v) => `${v.toFixed(1)}${detail.unit}`} />
+            <Tooltip
+              contentStyle={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", fontSize: "11px", color: "#111" }}
+              formatter={(v: any) => [`${Number(v).toFixed(2)}${detail.unit}`, detail.title]}
+              labelStyle={{ color: "#6b7280" }}
+            />
+            {/* Colored zone bands */}
+            {(detail.zones ?? []).map((z: any, i: number) => (
+              <ReferenceArea key={i} y1={z.y1} y2={Math.min(z.y2, yMax)}
+                fill={z.color} label={{ value: z.label, position: "insideTopLeft", fontSize: 8, fill: "#6b7280" }} />
+            ))}
+            {/* Threshold lines */}
+            {(detail.ref_lines ?? []).map((rl: any, i: number) => (
+              <ReferenceLine key={i} y={rl.y} stroke={rl.color} strokeDasharray="4 3" strokeWidth={1.5}
+                label={{ value: rl.label, position: "insideTopRight", fontSize: 9, fill: rl.color }} />
+            ))}
+            <Area type="monotone" dataKey="value"
+              stroke="#3b82f6" strokeWidth={2} fill={`url(#indGrad-${name})`} dot={false} />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Interpretation */}
+      <div className="mb-3 text-xs text-muted-foreground leading-relaxed border-l-2 border-primary/40 pl-3">
+        {detail.interpretation}
+      </div>
+
+      {/* Suggestion */}
+      <div className={cn("rounded-lg p-3 text-xs leading-relaxed", actionStyle)}>
+        <span className={cn("font-bold uppercase text-xs mr-2 px-1.5 py-0.5 rounded", actionStyle)}>
+          {actionLabel}
+        </span>
+        {suggestion.message}
+      </div>
+    </div>
+  );
+}
+
 function ValuationSection({ data, loading }: { data: ValuationData | null; loading: boolean }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+
   if (loading) {
     return (
       <div className="mb-6">
@@ -282,127 +402,100 @@ function ValuationSection({ data, loading }: { data: ValuationData | null; loadi
   );
 
   const capeStatus: "green" | "yellow" | "red" =
-    !data.cape ? "yellow" :
-    data.cape < 20 ? "green" :
-    data.cape < 30 ? "yellow" : "red";
-
-  const capeLabel =
-    !data.cape ? "—" :
-    data.cape > 37 ? "Extremely Stretched" :
-    data.cape > 30 ? "Expensive" :
-    data.cape > 20 ? "Moderate" : "Cheap";
+    !data.cape ? "yellow" : data.cape < 20 ? "green" : data.cape < 30 ? "yellow" : "red";
+  const capeLabel = !data.cape ? "—" :
+    data.cape > 37 ? "Extremely Stretched" : data.cape > 30 ? "Expensive" : data.cape > 20 ? "Moderate" : "Cheap";
 
   const rsiStatus: "green" | "yellow" | "red" =
-    !data.spy_rsi ? "yellow" :
-    data.spy_rsi > 70 ? "red" :
-    data.spy_rsi < 30 ? "green" : "yellow";
-
+    !data.spy_rsi ? "yellow" : data.spy_rsi > 70 ? "red" : data.spy_rsi < 30 ? "green" : "yellow";
   const rsiLabel = !data.spy_rsi ? "—" :
-    data.spy_rsi > 70 ? "Overbought" :
-    data.spy_rsi < 30 ? "Oversold" : "Neutral";
+    data.spy_rsi > 70 ? "Overbought" : data.spy_rsi < 30 ? "Oversold" : "Neutral";
 
   const gsStatus: "green" | "yellow" | "red" =
-    !data.gold_silver_ratio ? "yellow" :
-    data.gold_silver_ratio < 50 ? "green" :
-    data.gold_silver_ratio <= 80 ? "yellow" : "red";
-
+    !data.gold_silver_ratio ? "yellow" : data.gold_silver_ratio < 50 ? "green" : data.gold_silver_ratio <= 80 ? "yellow" : "red";
   const gsLabel = !data.gold_silver_ratio ? "—" :
-    data.gold_silver_ratio < 50 ? "Risk-On" :
-    data.gold_silver_ratio <= 80 ? "Neutral" : "Extreme Risk-Off";
+    data.gold_silver_ratio < 50 ? "Risk-On" : data.gold_silver_ratio <= 80 ? "Neutral" : "Extreme Risk-Off";
 
   const bondsVsStocksStatus: "green" | "yellow" | "red" =
-    data.t10y && data.earnings_yield
-      ? data.t10y > data.earnings_yield ? "red" : "green"
-      : "yellow";
+    data.t10y && data.earnings_yield ? (data.t10y > data.earnings_yield ? "red" : "green") : "yellow";
 
   const ma200Status: "green" | "yellow" | "red" =
-    data.spy_pct_from_high !== undefined
-      ? data.spy_pct_from_high > -5 ? "green" : "red"
-      : "yellow";
+    data.spy_pct_from_high !== undefined ? (data.spy_pct_from_high > -5 ? "green" : "red") : "yellow";
 
-  const cards = [
+  const cards: { title: string; value: string; status: "green"|"yellow"|"red"; label: string; tip: string; detailKey: string }[] = [
     {
-      title: "Shiller CAPE",
+      title: "Shiller CAPE", detailKey: "cape",
       value: data.cape ? data.cape.toFixed(1) : "—",
-      status: capeStatus,
-      label: capeLabel,
-      tip: "Cyclically Adjusted P/E averages 10 years of inflation-adjusted earnings to smooth business cycles. Historical average ~17. Above 30 = expensive; above 37 = extremely stretched. CAPE is a poor short-term timer but strongly predicts low 10-year forward returns.",
+      status: capeStatus, label: capeLabel,
+      tip: "Cyclically Adjusted P/E averages 10 years of inflation-adjusted earnings. Historical average ~17. Above 30 = expensive; above 37 = extremely stretched. Strongly predicts low 10-year forward returns.",
     },
     {
-      title: "SPY RSI (14d)",
+      title: "SPY RSI (14d)", detailKey: "rsi",
       value: data.spy_rsi ? data.spy_rsi.toFixed(1) : "—",
-      status: rsiStatus,
-      label: rsiLabel,
-      tip: "Relative Strength Index measures price momentum on 0–100 scale. Above 70 = overbought — the market may be due for a pullback. Below 30 = oversold — potential buying opportunity. In strong bull markets, RSI can stay >70 for months.",
+      status: rsiStatus, label: rsiLabel,
+      tip: "Relative Strength Index on 0–100 scale. Above 70 = overbought (potential pullback). Below 30 = oversold (potential buying opportunity). In strong bull markets RSI can stay >70 for months.",
     },
     {
-      title: "Gold/Silver Ratio",
+      title: "Gold/Silver Ratio", detailKey: "gold_silver",
       value: data.gold_silver_ratio ? data.gold_silver_ratio.toFixed(1) : "—",
-      status: gsStatus,
-      label: gsLabel,
-      tip: "How many ounces of silver to buy one ounce of gold. Above 80 = silver is historically cheap vs gold and the ratio tends to mean-revert — often preceding a risk-on environment. Below 50 = silver expensive, high risk appetite. The ratio peaked at 124 in March 2020 (COVID crash bottom).",
+      status: gsStatus, label: gsLabel,
+      tip: "How many oz of silver per oz of gold. Above 80 = silver historically cheap, ratio tends to mean-revert — often signaling coming risk-on. Peaked at 124 in March 2020 COVID crash bottom.",
     },
     {
-      title: "Bond vs Stock Yield",
+      title: "Bond vs Stock Yield", detailKey: "bond_vs_stock",
       value: data.t10y && data.earnings_yield
-        ? `Bonds ${data.t10y.toFixed(2)}% vs Stocks ${data.earnings_yield.toFixed(2)}%`
-        : "—",
+        ? `Bonds ${data.t10y.toFixed(2)}% vs Stocks ${data.earnings_yield.toFixed(2)}%` : "—",
       status: bondsVsStocksStatus,
       label: bondsVsStocksStatus === "red" ? "Bonds Attractive" : "Stocks Attractive",
-      tip: "Comparing the 10-year Treasury yield to the stock market's earnings yield (1/CAPE). When bonds yield more than stocks, they offer a competing return without equity risk — this weakens the 'TINA' (There Is No Alternative) argument for stocks.",
+      tip: "10-year Treasury yield vs stock earnings yield (1/CAPE). When bonds yield more than stocks, they offer competing return without equity risk — weakens the 'TINA' argument for stocks.",
     },
     {
-      title: "SPY vs 200-day MA",
+      title: "SPY vs 200-day MA", detailKey: "spy_ma",
       value: data.spy_pct_from_high !== undefined
-        ? (data.spy_pct_from_high >= 0 ? "+" : "") + data.spy_pct_from_high.toFixed(1) + "% from 52wk high"
-        : "—",
+        ? (data.spy_pct_from_high >= 0 ? "+" : "") + data.spy_pct_from_high.toFixed(1) + "% from 52wk high" : "—",
       status: ma200Status,
       label: data.spy_price && data.spy_ma200
-        ? data.spy_price > data.spy_ma200 ? "Above 200MA" : "Below 200MA"
-        : "—",
-      tip: "The 200-day moving average is a key long-term trend indicator. The S&P 500 being above its 200-day MA signals an uptrend; below signals a downtrend. Market breadth (% of stocks above their 200-day MA) is an even better measure.",
+        ? (data.spy_price > data.spy_ma200 ? "Above 200MA" : "Below 200MA") : "—",
+      tip: "Shows whether the S&P 500 is in an uptrend (above 200MA) or downtrend (below 200MA). Being 15%+ above the 200MA historically signals a stretched market.",
     },
   ];
 
   return (
     <div className="mb-6">
       <SectionHeader title="Valuation Signals" />
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
-        {cards.map((c) => (
-          <div key={c.title} className="rounded-xl border border-border bg-card p-3 space-y-1.5">
-            <div className="flex items-center text-xs text-muted-foreground">
-              {c.title}
-              <InfoTip text={c.tip} />
+      <p className="text-xs text-muted-foreground mb-3 flex items-center gap-1">
+        <ChevronRight size={11} /> Click any card to see historical chart, interpretation, and suggested action
+      </p>
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        {cards.map((c) => {
+          const isOpen = expanded === c.detailKey;
+          return (
+            <div key={c.title}
+              onClick={() => setExpanded(isOpen ? null : c.detailKey)}
+              className={cn(
+                "rounded-xl border bg-card p-3 space-y-1.5 cursor-pointer transition-all hover:border-primary/50",
+                isOpen ? "border-primary ring-1 ring-primary/20" : "border-border"
+              )}>
+              <div className="flex items-center text-xs text-muted-foreground">
+                {c.title}
+                <InfoTip text={c.tip} />
+              </div>
+              <div className="text-base font-bold leading-tight">{c.value}</div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <StatusDot color={c.status} />
+                  <span className="text-xs text-muted-foreground">{c.label}</span>
+                </div>
+                <ChevronRight size={11} className={cn("text-muted-foreground transition-transform", isOpen && "rotate-90")} />
+              </div>
             </div>
-            <div className="text-base font-bold leading-tight">{c.value}</div>
-            <div className="flex items-center gap-1.5">
-              <StatusDot color={c.status} />
-              <span className="text-xs text-muted-foreground">{c.label}</span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* CAPE sparkline */}
-      {data.cape_hist && data.cape_hist.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-3">
-          <div className="text-xs text-muted-foreground mb-1">CAPE History (10 Years)</div>
-          <ResponsiveContainer width="100%" height={80}>
-            <AreaChart data={data.cape_hist} margin={{ top: 2, bottom: 2, left: 0, right: 0 }}>
-              <defs>
-                <linearGradient id="capeGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <Area type="monotone" dataKey="value" stroke="#f59e0b" fill="url(#capeGrad)" strokeWidth={1.5} dot={false} />
-              <Tooltip
-                contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px", fontSize: "11px" }}
-                formatter={(v: number) => [v.toFixed(1), "CAPE"]}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+      {/* Expanded detail panel — spans full width below the grid */}
+      {expanded && (
+        <IndicatorDetailPanel name={expanded} onClose={() => setExpanded(null)} />
       )}
     </div>
   );

@@ -49,8 +49,8 @@ async def get_history(ticker: str, period: str = "1mo"):
         if hist.empty:
             raise HTTPException(status_code=404, detail=f"No history for {ticker.upper()}")
         return [
-            {"date": str(d.date()), "close": round(float(c), 2)}
-            for d, c in zip(hist.index, hist["Close"])
+            {"date": str(d.date()), "close": round(float(c), 2), "volume": int(v)}
+            for d, c, v in zip(hist.index, hist["Close"], hist["Volume"])
         ]
     except HTTPException:
         raise

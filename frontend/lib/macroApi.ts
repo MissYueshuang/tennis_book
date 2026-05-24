@@ -7,3 +7,5 @@ export const getMacroEconomic     = () => fetch(`${BASE}/economic`).then(r => r.
 export const getMacroSentiment    = () => fetch(`${BASE}/sentiment`).then(r => r.json());
 export const getBulkSignals       = (tickers: string[]) =>
   fetch(`${BASE}/signals?tickers=${tickers.join(",")}`).then(r => r.json());
+export const getIndicatorDetail   = (name: string) =>
+  fetch(`${BASE}/indicator/${name}`).then(r => r.json());

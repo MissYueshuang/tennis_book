@@ -435,3 +435,219 @@ def get_signals_bulk(tickers: list[str]) -> list[dict]:
             results.append({"ticker": ticker, "error": str(e)})
     _set(KEY, results, 900)   # 15 min
     return results
+
+
+# ─── Valuation indicator detail (history + zones + suggestion) ────────────────
+
+def get_indicator_detail(name: str) -> dict:
+    KEY = f"ind_detail_{name}"
+    if (c := _get(KEY)):
+        return c
+
+    # ── CAPE ──────────────────────────────────────────────────────────────────
+    if name == "cape":
+        try:
+            r = httpx.get(
+                "https://posix4e.github.io/shiller_wrapper_data/data/stock_market_data.json",
+                timeout=15)
+            entries = [e for e in r.json().get("data", []) if e.get("cape")]
+            hist = [{"date": e["date_string"][:7], "value": round(float(e["cape"]), 1)}
+                    for e in entries[-360:]]   # 30 years
+            current = float(entries[-1]["cape"]) if entries else None
+        except Exception:
+            hist, current = [], None
+
+        result = {
+            "name": "cape", "title": "Shiller CAPE Ratio",
+            "hist": hist, "current": current, "unit": "",
+            "zones": [
+                {"y1": 0,   "y2": 17,  "label": "Cheap (Buy Zone)",      "color": "#22c55e20"},
+                {"y1": 17,  "y2": 25,  "label": "Fair Value",             "color": "#facc1520"},
+                {"y1": 25,  "y2": 35,  "label": "Expensive",              "color": "#f9731620"},
+                {"y1": 35,  "y2": 60,  "label": "Very Expensive",         "color": "#ef444420"},
+            ],
+            "ref_lines": [
+                {"y": 17,  "label": "Hist. avg (17)",   "color": "#9ca3af"},
+                {"y": 25,  "label": "Expensive (25)",   "color": "#f97316"},
+                {"y": 35,  "label": "Overvalued (35)",  "color": "#ef4444"},
+            ],
+            "interpretation": "CAPE (Cyclically Adjusted P/E) smooths earnings over 10 years to remove cyclical distortions. The long-run average is ~17. Readings above 30 have historically predicted below-average 10-year returns, though CAPE is not a short-term timing tool.",
+            "suggestion": _cape_suggestion(current),
+        }
+
+    # ── SPY RSI ───────────────────────────────────────────────────────────────
+    elif name == "rsi":
+        spy_raw = yf.download("SPY", start="2010-01-01", progress=False)
+        spy_close = spy_raw["Close"]
+        if isinstance(spy_close, pd.DataFrame):
+            spy_close = spy_close.iloc[:, 0]
+        spy_m = spy_close.resample("ME").last().dropna()
+        delta = spy_m.diff()
+        gain  = delta.clip(lower=0).rolling(14).mean()
+        loss  = (-delta.clip(upper=0)).rolling(14).mean()
+        rsi_s = 100 - 100 / (1 + gain / loss)
+        hist  = [{"date": str(d.date())[:7], "value": round(float(v), 1)}
+                 for d, v in zip(rsi_s.index, rsi_s) if not np.isnan(v)]
+        current = hist[-1]["value"] if hist else None
+
+        result = {
+            "name": "rsi", "title": "SPY RSI (14-month)",
+            "hist": hist, "current": current, "unit": "",
+            "zones": [
+                {"y1": 0,  "y2": 30,  "label": "Oversold (Buy Zone)",  "color": "#22c55e20"},
+                {"y1": 30, "y2": 70,  "label": "Neutral",              "color": "#3b82f620"},
+                {"y1": 70, "y2": 100, "label": "Overbought (Sell Zone)", "color": "#ef444420"},
+            ],
+            "ref_lines": [
+                {"y": 30, "label": "Oversold (30)",    "color": "#22c55e"},
+                {"y": 70, "label": "Overbought (70)",  "color": "#ef4444"},
+            ],
+            "interpretation": "RSI measures the speed and magnitude of recent price changes on a 0–100 scale. Above 70 signals the market is potentially overbought and due for a correction. Below 30 signals oversold conditions — historically a high-probability buying opportunity.",
+            "suggestion": _rsi_suggestion(current),
+        }
+
+    # ── Gold/Silver ratio ──────────────────────────────────────────────────────
+    elif name == "gold_silver":
+        gold_raw  = yf.download("GC=F", start="2000-01-01", progress=False)
+        silv_raw  = yf.download("SI=F", start="2000-01-01", progress=False)
+        gold_close = gold_raw["Close"] if isinstance(gold_raw["Close"], pd.Series) else gold_raw["Close"].iloc[:, 0]
+        silv_close = silv_raw["Close"] if isinstance(silv_raw["Close"], pd.Series) else silv_raw["Close"].iloc[:, 0]
+        gold_m = gold_close.resample("ME").last()
+        silv_m = silv_close.resample("ME").last()
+        ratio  = (gold_m / silv_m).dropna()
+        hist   = [{"date": str(d.date())[:7], "value": round(float(v), 1)}
+                  for d, v in zip(ratio.index, ratio)]
+        current = hist[-1]["value"] if hist else None
+
+        result = {
+            "name": "gold_silver", "title": "Gold/Silver Ratio",
+            "hist": hist, "current": current, "unit": "x",
+            "zones": [
+                {"y1": 0,   "y2": 50,  "label": "Risk-On (Silver Expensive)", "color": "#22c55e20"},
+                {"y1": 50,  "y2": 80,  "label": "Neutral",                    "color": "#facc1520"},
+                {"y1": 80,  "y2": 200, "label": "Risk-Off (Silver Cheap)",     "color": "#ef444420"},
+            ],
+            "ref_lines": [
+                {"y": 50,  "label": "Risk-On threshold (50)",  "color": "#22c55e"},
+                {"y": 80,  "label": "Extreme Risk-Off (80)",   "color": "#ef4444"},
+            ],
+            "interpretation": "Measures how many ounces of silver equal one ounce of gold. High ratio (>80) means silver is historically cheap relative to gold — these levels have historically resolved via silver outperformance, often coinciding with a shift to risk-on markets. The ratio peaked at 124 during the COVID crash in March 2020.",
+            "suggestion": _gs_suggestion(current),
+        }
+
+    # ── Bond vs Stock Yield ────────────────────────────────────────────────────
+    elif name == "bond_vs_stock":
+        # 10Y yield from FRED, CAPE-derived earnings yield
+        t10_obs = _fred("DGS10", 360) if FRED_KEY else []
+        cape_r  = httpx.get(
+            "https://posix4e.github.io/shiller_wrapper_data/data/stock_market_data.json",
+            timeout=15)
+        cape_entries = [e for e in cape_r.json().get("data", []) if e.get("cape")]
+        cape_s = pd.Series(
+            [float(e["cape"]) for e in cape_entries],
+            index=pd.to_datetime([e["date_string"] for e in cape_entries])
+        ).sort_index()
+
+        t10_s = pd.Series(
+            [o["value"] for o in t10_obs],
+            index=pd.to_datetime([o["date"] for o in t10_obs])
+        ).sort_index() if t10_obs else pd.Series(dtype=float)
+
+        if not t10_s.empty and not cape_s.empty:
+            t10_m    = t10_s.resample("ME").last()
+            earn_yld = (100 / cape_s).resample("ME").last()
+            spread   = (earn_yld - t10_m).dropna()
+            hist     = [{"date": str(d.date())[:7],
+                         "value": round(float(v), 2),
+                         "t10y": round(float(t10_m.get(d, np.nan)), 2),
+                         "ey":   round(float(earn_yld.get(d, np.nan)), 2)}
+                        for d, v in zip(spread.index, spread) if not np.isnan(v)]
+            current = hist[-1]["value"] if hist else None
+        else:
+            hist, current = [], None
+
+        result = {
+            "name": "bond_vs_stock", "title": "Equity Risk Premium (Stocks − Bonds)",
+            "hist": hist, "current": current, "unit": "%",
+            "zones": [
+                {"y1": -10, "y2": 0,  "label": "Bonds More Attractive",  "color": "#ef444420"},
+                {"y1": 0,   "y2": 3,  "label": "Near Parity",            "color": "#facc1520"},
+                {"y1": 3,   "y2": 15, "label": "Stocks Attractive",      "color": "#22c55e20"},
+            ],
+            "ref_lines": [
+                {"y": 0, "label": "Parity (0%)", "color": "#9ca3af"},
+                {"y": 3, "label": "Hist. avg ERP (~3%)", "color": "#22c55e"},
+            ],
+            "interpretation": "The Equity Risk Premium (ERP) = Stock earnings yield (1/CAPE) − 10Y Treasury yield. A positive ERP means stocks offer extra return over bonds for the risk taken. Negative ERP means bonds yield more than stocks — reducing the incentive to own equities.",
+            "suggestion": _erp_suggestion(current),
+        }
+
+    # ── SPY vs 200MA ──────────────────────────────────────────────────────────
+    elif name == "spy_ma":
+        spy_raw = yf.download("SPY", start="2000-01-01", progress=False)
+        spy_close = spy_raw["Close"] if isinstance(spy_raw["Close"], pd.Series) else spy_raw["Close"].iloc[:, 0]
+        ma200 = spy_close.rolling(200).mean()
+        dev   = ((spy_close - ma200) / ma200 * 100).dropna()
+        dev_m = dev.resample("ME").last()
+        hist  = [{"date": str(d.date())[:7], "value": round(float(v), 1)}
+                 for d, v in zip(dev_m.index, dev_m) if not np.isnan(v)]
+        current = hist[-1]["value"] if hist else None
+
+        result = {
+            "name": "spy_ma", "title": "SPY % Above/Below 200-day MA",
+            "hist": hist, "current": current, "unit": "%",
+            "zones": [
+                {"y1": -50, "y2": -10, "label": "Deep Bear Market",  "color": "#ef444420"},
+                {"y1": -10, "y2": 0,   "label": "Caution Zone",      "color": "#f9731620"},
+                {"y1": 0,   "y2": 15,  "label": "Healthy Uptrend",   "color": "#22c55e20"},
+                {"y1": 15,  "y2": 50,  "label": "Stretched (Sell)",  "color": "#facc1520"},
+            ],
+            "ref_lines": [
+                {"y": 0,  "label": "200MA (0%)",         "color": "#9ca3af"},
+                {"y": 15, "label": "Stretched (+15%)",   "color": "#f97316"},
+                {"y": -10,"label": "Caution (-10%)",     "color": "#f97316"},
+            ],
+            "interpretation": "Shows how far the S&P 500 is trading above or below its 200-day moving average, as a percentage. Historically, being more than 15% above the 200MA signals a stretched, overbought market. Being below the 200MA signals a downtrend where caution is warranted.",
+            "suggestion": _ma_suggestion(current),
+        }
+
+    else:
+        result = {"error": f"Unknown indicator: {name}"}
+
+    _set(KEY, result, 3600 * 6)
+    return result
+
+
+def _cape_suggestion(v):
+    if v is None: return {"action": "unknown", "message": "Data unavailable."}
+    if v < 17:    return {"action": "buy",     "message": f"CAPE at {v:.1f} is below the historical average (17). Stocks appear undervalued. Historical 10-year returns from this level have been strong (>10% p.a.)."}
+    if v < 25:    return {"action": "hold",    "message": f"CAPE at {v:.1f} is in fair-value territory. No strong signal either way — focus on individual stock selection and diversification."}
+    if v < 35:    return {"action": "caution", "message": f"CAPE at {v:.1f} is elevated. Consider tilting toward value stocks, international markets, or holding slightly higher cash. 10-year forward returns from this level average ~5% p.a."}
+    return             {"action": "sell",     "message": f"CAPE at {v:.1f} is in the top decile historically. Consider reducing equity exposure, especially in high-multiple growth stocks. Historical 10-year returns from CAPE >35 have averaged ~2% p.a."}
+
+def _rsi_suggestion(v):
+    if v is None: return {"action": "unknown", "message": "Data unavailable."}
+    if v < 30:    return {"action": "buy",     "message": f"RSI at {v:.1f} signals the market is oversold. Historically, buying SPY when monthly RSI <30 has been highly profitable over the following 12 months."}
+    if v < 50:    return {"action": "hold",    "message": f"RSI at {v:.1f} is in recovery territory. The market has room to run before becoming overbought."}
+    if v < 70:    return {"action": "hold",    "message": f"RSI at {v:.1f} is in neutral/bullish territory. No immediate concern, but watch for a move toward 70."}
+    return             {"action": "caution", "message": f"RSI at {v:.1f} signals the market is overbought. Consider taking partial profits or tightening stop-losses. Strong trends can sustain RSI >70 for months."}
+
+def _gs_suggestion(v):
+    if v is None: return {"action": "unknown", "message": "Data unavailable."}
+    if v > 80:    return {"action": "buy",     "message": f"Gold/Silver ratio at {v:.1f} is in extreme territory. Silver is historically cheap. Consider silver exposure. The ratio has historically reverted from >80 with silver significantly outperforming."}
+    if v > 60:    return {"action": "hold",    "message": f"Gold/Silver ratio at {v:.1f} is elevated but not extreme. Risk-off sentiment is present. Monitor for signs of reversal."}
+    return             {"action": "hold",    "message": f"Gold/Silver ratio at {v:.1f} is in risk-on territory. Silver and commodity-linked equities tend to perform well when the ratio is low and falling."}
+
+def _erp_suggestion(v):
+    if v is None: return {"action": "unknown", "message": "Data unavailable."}
+    if v < 0:     return {"action": "sell",    "message": f"Equity Risk Premium of {v:.2f}% is negative — bonds yield more than stocks. There is no return premium for taking equity risk. Consider increasing bond/cash allocation."}
+    if v < 2:     return {"action": "caution", "message": f"ERP of {v:.2f}% is very thin. Stocks are barely compensating investors for equity risk versus bonds. Reduce high-multiple growth exposure."}
+    if v < 4:     return {"action": "hold",    "message": f"ERP of {v:.2f}% is near the historical average (~3%). Stocks offer a modest premium over bonds — maintain a balanced allocation."}
+    return             {"action": "buy",     "message": f"ERP of {v:.2f}% is generous. Stocks offer strong return potential relative to bonds. This historically correlates with good 3-5 year equity returns."}
+
+def _ma_suggestion(v):
+    if v is None:  return {"action": "unknown", "message": "Data unavailable."}
+    if v < -20:    return {"action": "buy",     "message": f"SPY is {abs(v):.1f}% below its 200MA — deep bear market territory. Historical buying at such extreme discounts has produced strong 12-month returns. Risk is high short-term but expected value is positive."}
+    if v < 0:      return {"action": "caution", "message": f"SPY is {abs(v):.1f}% below its 200MA, signalling a downtrend. Avoid adding to positions until the price reclaims the 200MA."}
+    if v < 15:     return {"action": "hold",    "message": f"SPY is {v:.1f}% above its 200MA — healthy uptrend. Trend-following indicators support staying invested."}
+    return              {"action": "caution", "message": f"SPY is {v:.1f}% above its 200MA — stretched above trend. The market has historically mean-reverted from levels above 15%. Consider trimming positions and tightening risk management."}

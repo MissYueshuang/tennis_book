@@ -3,7 +3,7 @@ from typing import List
 import asyncio
 from tools.macro_tools import (
     get_scorecard, get_valuation, get_history_patterns,
-    get_economic, get_sentiment, get_signals_bulk
+    get_economic, get_sentiment, get_signals_bulk, get_indicator_detail
 )
 
 router = APIRouter(prefix="/api/macro")
@@ -36,3 +36,7 @@ async def sentiment():
 async def signals(tickers: str = Query(...)):
     ticker_list = [t.strip().upper() for t in tickers.split(",") if t.strip()]
     return await _run(get_signals_bulk, ticker_list)
+
+@router.get("/indicator/{name}")
+async def indicator_detail(name: str):
+    return await _run(get_indicator_detail, name)

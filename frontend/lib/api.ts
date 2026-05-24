@@ -21,6 +21,7 @@ export interface Quote {
 export interface HistoryPoint {
   date: string;
   close: number;
+  volume?: number;
 }
 
 export interface NewsArticle {
