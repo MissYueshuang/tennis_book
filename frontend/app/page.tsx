@@ -13,6 +13,7 @@ import StockDetail from "@/components/StockDetail";
 import ChatWindow from "@/components/ChatWindow";
 import AddHoldingModal from "@/components/AddHoldingModal";
 import MacroTab from "@/components/MacroTab";
+import EtfTab from "@/components/EtfTab";
 
 const COLORS = ["#3b82f6","#8b5cf6","#06b6d4","#10b981","#f59e0b","#ef4444","#ec4899","#84cc16"];
 const LS_SIZES  = "portfolio-sizes-v1";
@@ -31,7 +32,7 @@ export default function Home() {
   const [showAdd,  setShowAdd]  = useState(false);
   const [loading,  setLoading]  = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
-  const [activeTab, setActiveTab] = useState<"portfolio" | "macro">("portfolio");
+  const [activeTab, setActiveTab] = useState<"portfolio" | "macro" | "etf">("portfolio");
   const [signals, setSignals] = useState<Record<string, any>>({});
 
   // Panel sizes (percentages) and widget order (for swap)
@@ -264,11 +265,11 @@ export default function Home() {
           </span>
         </div>
         <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
-          {(["portfolio","macro"] as const).map(tab => (
+          {(["portfolio","macro","etf"] as const).map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               className={cn("px-3 py-1 rounded-md text-sm font-medium transition-colors",
                 activeTab === tab ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-              {tab === "portfolio" ? "Portfolio" : "Market Signals"}
+              {tab === "portfolio" ? "Portfolio" : tab === "macro" ? "Market Signals" : "ETF Portfolio"}
             </button>
           ))}
         </div>
@@ -324,9 +325,13 @@ export default function Home() {
         </PanelGroup>
       </div>
 
-      ) : (
+      ) : activeTab === "macro" ? (
         <div className="flex-1 min-h-0">
           <MacroTab />
+        </div>
+      ) : (
+        <div className="flex-1 min-h-0">
+          <EtfTab />
         </div>
       )}
 

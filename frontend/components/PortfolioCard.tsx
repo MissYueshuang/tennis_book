@@ -54,7 +54,10 @@ export default function PortfolioCard({ holding, quote, signals, onMutate, onCli
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
-        <span className="text-base font-bold tracking-tight">{holding.ticker}</span>
+        <div className="flex items-baseline gap-2">
+          <span className="text-base font-bold tracking-tight">{holding.ticker}</span>
+          {quote && <span className="text-sm text-muted-foreground">{fmtCurrency(quote.price)}</span>}
+        </div>
         <div className="flex gap-1 absolute top-2.5 right-2.5">
           <button
             onClick={(e) => { e.stopPropagation(); setEditing(true); }}

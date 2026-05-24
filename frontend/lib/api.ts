@@ -76,6 +76,32 @@ export const getNews = (ticker: string, count = 5) =>
     (r) => r.json() as Promise<NewsArticle[]>
   );
 
+export interface TrendPrediction {
+  ticker: string;
+  direction: "up" | "down" | "neutral";
+  confidence: number;
+  reason: string;
+  signals: {
+    rsi: number | null;
+    macd: number | null;
+    macd_signal: number | null;
+    macd_hist: number | null;
+    macd_bullish: boolean | null;
+    golden_cross: boolean | null;
+    death_cross: boolean | null;
+    above_ma20: boolean | null;
+    above_ma50: boolean | null;
+    bb_pct: number;
+    vol_trend: string | null;
+    price: number;
+  };
+}
+
+export const getTrendPrediction = (ticker: string) =>
+  fetch(`${BASE}/market/predict/${ticker}`).then(
+    (r) => r.json() as Promise<TrendPrediction>
+  );
+
 // Chat
 export const sendChat = (content: string) =>
   fetch(`${BASE}/chat/`, {
@@ -89,3 +115,11 @@ export const getChatHistory = () =>
 
 export const clearChatHistory = () =>
   fetch(`${BASE}/chat/history`, { method: "DELETE" });
+
+// ETF Portfolio
+export const getEtfProfile = () => fetch(`${BASE}/etf/profile`).then(r => r.json());
+export const saveEtfProfile = (p: any) => fetch(`${BASE}/etf/profile`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(p) }).then(r => r.json());
+export const getEtfSuggestions = () => fetch(`${BASE}/etf/suggestions`).then(r => r.json());
+export const getEtfHoldings = () => fetch(`${BASE}/etf/holdings`).then(r => r.json());
+export const addEtfTransaction = (t: any) => fetch(`${BASE}/etf/transaction`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(t) }).then(r => r.json());
+export const deleteEtfTransaction = (id: number) => fetch(`${BASE}/etf/transaction/${id}`, { method: "DELETE" });

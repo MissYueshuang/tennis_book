@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, func
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey, func
 from sqlalchemy.orm import mapped_column, Mapped
 from pydantic import BaseModel
 from typing import Optional
@@ -47,6 +47,42 @@ class HoldingOut(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class EtfProfile(Base):
+    __tablename__ = "etf_profiles"
+    id = Column(Integer, primary_key=True)
+    risk = Column(String)           # conservative / moderate / aggressive
+    expected_return = Column(Float) # target YoY %
+    horizon_years = Column(Integer) # investment horizon
+    regions = Column(String)        # JSON-encoded list e.g. '["US","Global"]'
+    sectors = Column(String)        # JSON-encoded list
+    num_etfs = Column(Integer)
+    include_bonds = Column(Boolean, default=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class EtfSuggestion(Base):
+    __tablename__ = "etf_suggestions"
+    id = Column(Integer, primary_key=True)
+    profile_id = Column(Integer, ForeignKey("etf_profiles.id"))
+    ticker = Column(String)
+    name = Column(String)
+    etf_type = Column(String)       # equity / bond / commodity / cash
+    weight = Column(Float)          # 0-100
+    justification = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class EtfTransaction(Base):
+    __tablename__ = "etf_transactions"
+    id = Column(Integer, primary_key=True)
+    ticker = Column(String)
+    action = Column(String)         # buy / sell
+    shares = Column(Float)
+    price = Column(Float)
+    date = Column(String)           # ISO date string
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class ChatMessageIn(BaseModel):
