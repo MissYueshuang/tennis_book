@@ -202,4 +202,5 @@ async def call_mcp_tool(tool_name: str, arguments: dict[str, Any]) -> Any:
     if fn is None:
         return {"error": f"Unknown tool: {tool_name}"}
     loop = asyncio.get_event_loop()
+    # Take this synchronous function and run it on a background thread pool. Give me back an awaitable I can await.
     return await loop.run_in_executor(None, lambda: fn(**arguments))

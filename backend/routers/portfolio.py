@@ -9,6 +9,12 @@ router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
 
 @router.get("/", response_model=list[HoldingOut])
 async def list_holdings(db: AsyncSession = Depends(get_db)):
+    """
+    SELECT holdings.id, holdings.ticker, holdings.shares, holdings.avg_cost,
+       holdings.created_at, holdings.updated_at
+    FROM holdings
+    ORDER BY holdings.ticker
+    """
     result = await db.execute(select(Holding).order_by(Holding.ticker))
     return result.scalars().all()
 

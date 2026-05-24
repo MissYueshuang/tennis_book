@@ -1,4 +1,4 @@
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager # define startup/shutdown logic
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -12,6 +12,11 @@ from routers import portfolio, market, chat
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """
+    Code before yield runs once when the server starts → here it initializes the database (creates tables if they don't exist).
+    Code after yield would run when the server shuts down (none here yet — you might add await db.close() later).
+    expensive one-time setup (opening DB connections, loading ML models) to happen once at boot, not on every request.
+    """
     await init_db()
     yield
 
@@ -20,7 +25,7 @@ app = FastAPI(title="Portfolio API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000"], # let's talk to front-end
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

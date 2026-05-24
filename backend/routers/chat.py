@@ -3,6 +3,20 @@ Chat router — Ollama (qwen3:32b) with tool use.
 - think:false disables Qwen3's silent reasoning chain (big speedup)
 - Tool call rounds are non-streaming (need full response to parse tool_calls)
 - Final answer is streamed token-by-token via SSE so the UI feels instant
+
+User types in chat → Next.js frontend
+                       ↓ POST /api/chat
+                   FastAPI (your backend)
+                       ↓ POST localhost:11434/api/chat
+                   Ollama (running qwen3:32b)
+                       ↓ generates tokens
+                   FastAPI streams them back
+                       ↓ SSE
+                   Frontend displays text
+
+ Streaming here is done via Server-Sent Events (SSE) — 
+ a long-lived HTTP response where the server keeps sending small chunks of text instead of closing the connection after one reply.                  
+
 """
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -18,7 +32,7 @@ from mcp_client import call_mcp_tool, get_all_tools
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
-OLLAMA_BASE = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_BASE = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434") # A server, load LLM into memory, like talk to OpenAI
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:32b")
 MAX_HISTORY = 20
 
@@ -110,10 +124,18 @@ async def _stream_final(messages: list[dict], db: AsyncSession, model: str, thin
 
     async with httpx.AsyncClient(timeout=120) as client:
         payload = _base_payload(messages, stream=True, model=model, think=think)
+        """
+        The wire format data: {...}\n\n is the SSE protocol — a simple convention:
+
+        Each event starts with data:
+        Each event ends with a blank line (\n\n)
+        That's it. No WebSockets, no extra libraries — it's just plain HTTP that never closes.
+        """
         async with client.stream("POST", f"{OLLAMA_BASE}/api/chat", json=payload) as resp:
             if resp.status_code != 200:
-                yield f"data: {json.dumps({'error': 'Ollama unreachable'})}\n\n"
+                yield f"data: {json.dumps({'error': 'Ollama unreachable'})}M\n\n"
                 return
+            # httpx.stream() opens the connection and aiter_lines() is an async generator that yields each line as it arrives — no buffering.
             async for line in resp.aiter_lines():
                 if not line:
                     continue
@@ -150,7 +172,7 @@ async def chat(body: ChatMessageIn, db: AsyncSession = Depends(get_db)):
     async with httpx.AsyncClient(timeout=120) as client:
         messages = await _run_tool_rounds(messages, tools, client, model=model, think=think)
 
-    # Phase 2: stream the final answer
+    # Phase 2: stream the final answer (flush each chunk to the network ASAP)
     return StreamingResponse(
         _stream_final(messages, db, model=model, think=think),
         media_type="text/event-stream",
