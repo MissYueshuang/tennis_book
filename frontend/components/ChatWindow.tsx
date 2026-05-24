@@ -9,7 +9,7 @@ const MODELS = [
   { id: "qwen3:8b",  label: "8B",  description: "Faster, lighter" },
 ];
 
-export default function ChatWindow({ onPortfolioChange }: { onPortfolioChange: () => void }) {
+export default function ChatWindow({ onPortfolioChange, suggestionsOverride }: { onPortfolioChange: () => void; suggestionsOverride?: string[] }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -101,7 +101,7 @@ export default function ChatWindow({ onPortfolioChange }: { onPortfolioChange: (
     setMessages([]);
   }
 
-  const SUGGESTIONS = [
+  const SUGGESTIONS = suggestionsOverride ?? [
     "How is my portfolio doing today?",
     "What's the news on my holdings?",
     "Add 10 shares of AAPL at $180",

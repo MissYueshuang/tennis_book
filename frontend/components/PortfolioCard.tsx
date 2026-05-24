@@ -7,12 +7,13 @@ import { cn, fmtCurrency, fmtPct } from "@/lib/utils";
 interface Props {
   holding: Holding;
   quote?: Quote;
+  signals?: { rsi: number; above_ma200: boolean | null; golden_cross: boolean | null };
   onMutate: () => void;
   onClick: () => void;
   selected: boolean;
 }
 
-export default function PortfolioCard({ holding, quote, onMutate, onClick, selected }: Props) {
+export default function PortfolioCard({ holding, quote, signals, onMutate, onClick, selected }: Props) {
   const [editing, setEditing] = useState(false);
   const [shares, setShares] = useState(String(holding.shares));
   const [cost, setCost] = useState(String(holding.avg_cost));
@@ -112,23 +113,41 @@ export default function PortfolioCard({ holding, quote, onMutate, onClick, selec
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-2 text-sm">
-          <div>
-            <div className="text-xs text-muted-foreground">Avg Cost</div>
-            <div className="font-medium">{fmtCurrency(holding.avg_cost)}</div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-foreground">Mkt Value</div>
-            <div className="font-medium">{fmtCurrency(marketValue)}</div>
-          </div>
-          <div className="text-right">
-            <div className="text-xs text-muted-foreground">Total P&L</div>
-            <div className={cn("font-medium flex items-center gap-0.5 justify-end", up ? "text-green-400" : "text-red-400")}>
-              {up ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-              {fmtPct(pnlPct)}
+        <>
+          <div className="grid grid-cols-3 gap-2 text-sm">
+            <div>
+              <div className="text-xs text-muted-foreground">Avg Cost</div>
+              <div className="font-medium">{fmtCurrency(holding.avg_cost)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Mkt Value</div>
+              <div className="font-medium">{fmtCurrency(marketValue)}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-muted-foreground">Total P&L</div>
+              <div className={cn("font-medium flex items-center gap-0.5 justify-end", up ? "text-green-400" : "text-red-400")}>
+                {up ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                {fmtPct(pnlPct)}
+              </div>
             </div>
           </div>
-        </div>
+          {signals && (
+            <div className="flex gap-2 mt-1.5 pt-1.5 border-t border-border/50">
+              <span className={cn("text-xs px-1.5 py-0.5 rounded font-medium",
+                signals.rsi > 70 ? "bg-red-500/15 text-red-400" :
+                signals.rsi < 30 ? "bg-green-500/15 text-green-400" :
+                "bg-muted text-muted-foreground")}>
+                RSI {signals.rsi}
+              </span>
+              {signals.above_ma200 !== null && (
+                <span className={cn("text-xs px-1.5 py-0.5 rounded font-medium",
+                  signals.above_ma200 ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400")}>
+                  {signals.above_ma200 ? "▲ 200MA" : "▼ 200MA"}
+                </span>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

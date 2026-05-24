@@ -5,12 +5,14 @@ import { Plus, RefreshCw, BarChart2, LayoutGrid, TrendingUp, DollarSign } from "
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 import { getHoldings, getBulkQuotes, type Holding, type Quote } from "@/lib/api";
+import { getBulkSignals } from "@/lib/macroApi";
 import { cn, fmtCurrency, fmtPct } from "@/lib/utils";
 import Widget from "@/components/Widget";
 import PortfolioCard from "@/components/PortfolioCard";
 import StockDetail from "@/components/StockDetail";
 import ChatWindow from "@/components/ChatWindow";
 import AddHoldingModal from "@/components/AddHoldingModal";
+import MacroTab from "@/components/MacroTab";
 
 const COLORS = ["#3b82f6","#8b5cf6","#06b6d4","#10b981","#f59e0b","#ef4444","#ec4899","#84cc16"];
 const LS_SIZES  = "portfolio-sizes-v1";
@@ -29,6 +31,8 @@ export default function Home() {
   const [showAdd,  setShowAdd]  = useState(false);
   const [loading,  setLoading]  = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [activeTab, setActiveTab] = useState<"portfolio" | "macro">("portfolio");
+  const [signals, setSignals] = useState<Record<string, any>>({});
 
   // Panel sizes (percentages) and widget order (for swap)
   const [sizes, setSizes]   = useState<number[]>(DEFAULT_SIZES);
@@ -55,6 +59,10 @@ export default function Home() {
         const qmap: Record<string, Quote> = {};
         qs.forEach((q) => { qmap[q.ticker] = q; });
         setQuotes(qmap);
+        const sigs = await getBulkSignals(h.map(x => x.ticker));
+        const smap: Record<string, any> = {};
+        sigs.forEach((s: any) => { if (s.ticker) smap[s.ticker] = s; });
+        setSignals(smap);
       }
       setLastRefresh(new Date());
     } finally { setLoading(false); }
@@ -149,7 +157,7 @@ export default function Home() {
               <p className="text-sm text-muted-foreground text-center py-6">No holdings. Add your first stock!</p>
             )}
             {holdings.map((h) => (
-              <PortfolioCard key={h.ticker} holding={h} quote={quotes[h.ticker]} onMutate={load_}
+              <PortfolioCard key={h.ticker} holding={h} quote={quotes[h.ticker]} signals={signals[h.ticker]} onMutate={load_}
                 onClick={() => setSelected(selected === h.ticker ? null : h.ticker)}
                 selected={selected === h.ticker} />
             ))}
@@ -255,6 +263,15 @@ export default function Home() {
             · {lastRefresh.toLocaleTimeString()}
           </span>
         </div>
+        <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
+          {(["portfolio","macro"] as const).map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)}
+              className={cn("px-3 py-1 rounded-md text-sm font-medium transition-colors",
+                activeTab === tab ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+              {tab === "portfolio" ? "Portfolio" : "Market Signals"}
+            </button>
+          ))}
+        </div>
         <div className="flex items-center gap-2">
           <button onClick={resetLayout} title="Reset layout"
             className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
@@ -272,6 +289,7 @@ export default function Home() {
       </header>
 
       {/* Panel canvas — fills remaining height */}
+      {activeTab === "portfolio" ? (
       <div className="flex-1 min-h-0 p-2">
         <PanelGroup
           orientation="horizontal"
@@ -305,6 +323,12 @@ export default function Home() {
           ))}
         </PanelGroup>
       </div>
+
+      ) : (
+        <div className="flex-1 min-h-0">
+          <MacroTab />
+        </div>
+      )}
 
       {showAdd && <AddHoldingModal onClose={() => setShowAdd(false)} onAdded={load_} />}
     </div>

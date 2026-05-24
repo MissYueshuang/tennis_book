@@ -8,6 +8,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 from database import init_db
 from routers import portfolio, market, chat
+from routers import macro
 
 
 @asynccontextmanager
@@ -34,6 +35,7 @@ app.add_middleware(
 app.include_router(portfolio.router)
 app.include_router(market.router)
 app.include_router(chat.router)
+app.include_router(macro.router)
 
 
 @app.get("/api/health")
