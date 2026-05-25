@@ -156,17 +156,37 @@ async def suggest_etfs(db: AsyncSession = Depends(get_db)):
 
     regions = json.loads(profile.regions or "[]")
     sectors = json.loads(profile.sectors or "[]")
+    # Total slots: num_etfs core ETFs + 1 mandatory cash position
+    core_count = max(2, profile.num_etfs - 1)
     prompt = (
-        "You are an ETF portfolio manager for long-term/retirement investing. "
-        f"Investor profile: risk={profile.risk}, target={profile.expected_return}% YoY, "
-        f"horizon={profile.horizon_years} years, regions={regions}, sectors={sectors}, "
-        f"num_etfs={profile.num_etfs}, include_bonds={profile.include_bonds}.\n\n"
-        "Create a diversified low-cost ETF portfolio. "
-        "Use well-known ETFs (SPY, VTI, QQQ, BND, GLD, VGK, EEM, EWJ, SCHD, JEPI, etc.).\n\n"
-        f"Return ONLY valid JSON array (no markdown, no /think tags) of exactly {profile.num_etfs} ETFs:\n"
-        '[{"ticker":"VTI","name":"Vanguard Total Stock Market ETF","type":"equity","weight":40,'
-        '"justification":"..."}]\n'
-        "Weights must sum to 100."
+        "You are a senior ETF portfolio manager specialising in long-term and retirement investing.\n\n"
+        f"INVESTOR PROFILE:\n"
+        f"  Risk tolerance : {profile.risk}\n"
+        f"  Target YoY return : {profile.expected_return}%\n"
+        f"  Investment horizon : {profile.horizon_years} years\n"
+        f"  Preferred regions : {', '.join(regions) if regions else 'Global'}\n"
+        f"  Preferred sectors : {', '.join(sectors) if sectors else 'All-Market'}\n"
+        f"  Include bonds : {profile.include_bonds}\n\n"
+        "CURATED ETF REFERENCE (choose from this list; you may also use others if better suited):\n"
+        "US Equity: SPY, VTI, QQQ  |  US Dividend/Value: SCHD, VYM, JEPI  |  US Growth: VUG, MGK, IVW\n"
+        "US Small/Mid: IWM, IJH, VB  |  Europe: VGK, EZU, IEV  |  Asia-Pacific: VPL, EWJ, AAXJ\n"
+        "Emerging Markets: VWO, EEM, IEMG  |  Global: VT, ACWI, VXUS\n"
+        "Tech: XLK, VGT, SMH  |  Healthcare: XLV, VHT, IBB  |  Energy: XLE, VDE, USO\n"
+        "Real Estate: VNQ, SCHH, IYR  |  ESG: ESGV, ESGU, DSI\n"
+        "Bonds: BND, AGG, TLT, TIP, HYG  |  Commodities: GLD, IAU, PDBC\n"
+        "Cash/Short-term: SGOV, BIL, SHV\n\n"
+        "RULES:\n"
+        f"1. Select exactly {core_count} core ETF positions suited to the investor profile.\n"
+        "2. ALWAYS add one cash/liquidity position (use ticker SGOV, BIL, or SHV) "
+        "   — weight 3-8% for aggressive, 5-10% for moderate, 8-15% for conservative.\n"
+        f"3. Total positions = {profile.num_etfs} ({core_count} core + 1 cash). All weights must sum to exactly 100.\n"
+        "4. Favour low-cost index ETFs. Avoid leveraged or inverse ETFs.\n"
+        "5. For long horizons (10+ years) tilt toward equities; for shorter horizons increase bonds/cash.\n\n"
+        f"Return ONLY a valid JSON array of exactly {profile.num_etfs} objects (no markdown, no commentary):\n"
+        '[{"ticker":"VTI","name":"Vanguard Total Stock Market ETF","type":"equity","weight":45,'
+        '"justification":"Core US broad-market exposure, low 0.03% expense ratio."}]\n'
+        'type must be one of: equity | bond | commodity | cash\n'
+        "Weights are integers summing to 100."
     )
 
     async def _stream() -> AsyncGenerator[str, None]:
