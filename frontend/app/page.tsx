@@ -302,7 +302,6 @@ export default function Home() {
             <React.Fragment key={widgetId}>
               <Panel
                 id={widgetId}
-                id={widgetId}
                 defaultSize={sizes[idx] ?? DEFAULT_SIZES[idx] ?? 33}
                 minSize={15}
                 className="min-w-0"
